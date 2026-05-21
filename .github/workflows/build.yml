@@ -55,13 +55,20 @@ jobs:
           find $GITHUB_WORKSPACE -name "sdl2.c" \
             -exec sed -i 's/#include "longintrepr.h"/\/\/ longintrepr.h removed/' {} \;
 
-      - name: Install Android SDK platform 33
+      - name: Install Android SDK tools
         run: |
-          SDKMANAGER=$(find ~/.buildozer -name "sdkmanager" 2>/dev/null | head -1)
-          if [ -n "$SDKMANAGER" ]; then
-            yes | $SDKMANAGER --sdk_root=$HOME/.buildozer/android/platform/android-sdk \
-              "platforms;android-33" "build-tools;33.0.0" 2>/dev/null || true
-          fi
+          mkdir -p ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          cd ~/.buildozer/android/platform/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q commandlinetools-linux-11076708_latest.zip
+          mv cmdline-tools latest
+          yes | ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+            --sdk_root=$HOME/.buildozer/android/platform/android-sdk \
+            "platforms;android-33" "build-tools;33.0.0" 2>/dev/null || true
+          # Also fix the tools/bin path buildozer expects
+          mkdir -p ~/.buildozer/android/platform/android-sdk/tools/bin
+          ln -sf ~/.buildozer/android/platform/android-sdk/cmdline-tools/latest/bin/sdkmanager \
+            ~/.buildozer/android/platform/android-sdk/tools/bin/sdkmanager
 
       - name: Final build
         run: |
