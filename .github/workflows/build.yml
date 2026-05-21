@@ -18,8 +18,10 @@ jobs:
           docker run --rm \
             -v $GITHUB_WORKSPACE:/home/user/hellfire \
             -w /home/user/hellfire \
+            -e BUILDOZER_WARN_ON_ROOT=0 \
+            --user root \
             kivy/buildozer \
-            android debug
+            sh -c "echo 'y' | buildozer android debug || buildozer android debug"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
