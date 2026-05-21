@@ -43,7 +43,12 @@ jobs:
       - name: Build APK
         run: |
           cd $GITHUB_WORKSPACE
-          yes | buildozer android debug
+          # Run once to download pygame source, will fail
+          buildozer android debug 2>/dev/null || true
+          # Patch longintrepr.h reference in all sdl2.c files
+          find . -name "sdl2.c" -exec sed -i 's/#include "longintrepr.h"/\/\/ longintrepr.h removed in Python 3.12/' {} \;
+          # Now build for real
+          buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
