@@ -13,42 +13,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
+      - name: Build APK with Docker
         run: |
-          sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev build-essential
-          pip install buildozer==1.5.0 cython==0.29.37
-      - name: Patch python-for-android recipes
-        run: |
-          # Run buildozer once to clone python-for-android, then patch it
-          cd $GITHUB_WORKSPACE
-          timeout 60 buildozer android debug 2>/dev/null || true
-          # Patch hostpython3 and python3 recipes to use 3.11.0
-          find . -path "*/recipes/hostpython3/__init__.py" -exec sed -i 's/version = "3.14.2"/version = "3.11.0"/' {} \;
-          find . -path "*/recipes/python3/__init__.py" -exec sed -i "s/version = '3.14.2'/version = '3.11.0'/" {} \;
-          # Verify
-          grep "version = " $(find . -path "*/recipes/hostpython3/__init__.py") | head -2
-      - name: Accept Android licenses
-        run: |
-          mkdir -p ~/.android
-          echo "count=0" > ~/.android/repositories.cfg
-          yes | buildozer android update 2>/dev/null || true
-          yes | sdkmanager --licenses 2>/dev/null || true
-
-      - name: Build APK
-        run: |
-          cd $GITHUB_WORKSPACE
-          # Run once to download pygame source, will fail
-          buildozer android debug 2>/dev/null || true
-          # Patch longintrepr.h reference in all sdl2.c files
-          find . -name "sdl2.c" -exec sed -i 's/#include "longintrepr.h"/\/\/ longintrepr.h removed in Python 3.12/' {} \;
-          # Now build for real
-          buildozer android debug
+          docker run --rm \
+            -v $GITHUB_WORKSPACE:/home/user/hellfire \
+            -w /home/user/hellfire \
+            kivy/buildozer \
+            android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
