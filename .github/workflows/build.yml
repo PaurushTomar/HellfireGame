@@ -13,14 +13,60 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build APK with Docker
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
         run: |
-          docker run --rm \
-            -v $GITHUB_WORKSPACE:/home/user/hellfire \
-            -w /home/user/hellfire \
-            --entrypoint /bin/bash \
-            kivy/buildozer \
-            -c "echo 'y' | buildozer android debug"
+          sudo apt update
+          sudo apt install -y git zip unzip openjdk-17-jdk autoconf libtool \
+            pkg-config zlib1g-dev libncurses-dev cmake libffi-dev libssl-dev \
+            build-essential ccache
+
+      - name: Install buildozer and cython
+        run: pip install buildozer==1.5.0 cython==0.29.37
+
+      - name: Pre-accept all Android licenses
+        run: |
+          mkdir -p ~/.android
+          echo "count=0" > ~/.android/repositories.cfg
+          mkdir -p ~/.buildozer/android/platform/android-sdk/licenses
+          printf '\n24333f8a63b6825ea9c5514f83c2829b004d1fee' > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
+          printf '\n84831b9409646a918e30573bab4c9c91346d8abd' > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
+          printf '\nd975f751698a77b662f1254ddbeed3901e976f5a' > ~/.buildozer/android/platform/android-sdk/licenses/intel-android-extra-license
+          printf '\n33b6937b6a9c6fc6d4b2dac6c08ddc37c6a73730' > ~/.buildozer/android/platform/android-sdk/licenses/android-sdk-arm-dbt-license
+
+      - name: First pass to download sources
+        run: |
+          cd $GITHUB_WORKSPACE
+          buildozer android debug 2>&1 || true
+
+      - name: Patch python-for-android recipe versions
+        run: |
+          find $GITHUB_WORKSPACE -path "*/recipes/hostpython3/__init__.py" \
+            -exec sed -i 's/version = "3.14.2"/version = "3.11.0"/' {} \;
+          find $GITHUB_WORKSPACE -path "*/recipes/python3/__init__.py" \
+            -exec sed -i "s/version = '3.14.2'/version = '3.11.0'/" {} \;
+
+      - name: Patch pygame longintrepr.h
+        run: |
+          find $GITHUB_WORKSPACE -name "sdl2.c" \
+            -exec sed -i 's/#include "longintrepr.h"/\/\/ longintrepr.h removed/' {} \;
+
+      - name: Install Android SDK platform 33
+        run: |
+          SDKMANAGER=$(find ~/.buildozer -name "sdkmanager" 2>/dev/null | head -1)
+          if [ -n "$SDKMANAGER" ]; then
+            yes | $SDKMANAGER --sdk_root=$HOME/.buildozer/android/platform/android-sdk \
+              "platforms;android-33" "build-tools;33.0.0" 2>/dev/null || true
+          fi
+
+      - name: Final build
+        run: |
+          cd $GITHUB_WORKSPACE
+          buildozer android debug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
